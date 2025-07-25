@@ -53,6 +53,10 @@ if MODEL_NAME == '':
 if DATA_NAME == '':
     DATA_NAME = sys.argv[2]
 
+# Groq API configuration
+USE_GROQ = os.getenv('USE_GROQ', 'false').lower() == 'true'
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+
 def last_boxed_only_string(string):
     idx = string.rfind('\\boxed')
     if idx < 0:
@@ -455,11 +459,48 @@ def create_client(line):
     except:
         pass
 
+def create_groq_client():
+    """Create a Groq API client"""
+    global clients
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY environment variable is required when USE_GROQ=true")
+    
+    client = OpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=GROQ_API_KEY,
+    )
+    
+    try:
+        # Test the connection with a simple request
+        client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "user", "content": "Test"}
+            ],
+            max_tokens=10,
+            temperature=0.1,
+            timeout=15
+        )
+        print("Groq client created successfully")
+        clients.append(client)
+    except Exception as e:
+        print(f"Failed to create Groq client: {e}")
+        raise
+
 def get_clients():
     global clients
-    lines = open('./server.csv','r').readlines()
-    with ThreadPoolExecutor() as executor:
-        executor.map(create_client, lines)
+    if USE_GROQ:
+        # Use Groq API
+        create_groq_client()
+        print(f"Using Groq API with model: {MODEL_NAME}")
+    else:
+        # Use local vLLM servers from server.csv
+        if not os.path.exists('./server.csv'):
+            raise FileNotFoundError("server.csv not found. Either create it with local server info or set USE_GROQ=true")
+        lines = open('./server.csv','r').readlines()
+        with ThreadPoolExecutor() as executor:
+            executor.map(create_client, lines)
+        print(f"Using {len(clients)} local vLLM servers")
 
 
 

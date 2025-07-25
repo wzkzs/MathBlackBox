@@ -33,6 +33,8 @@ pip install datasets transformers openai
 
 ## Usage
 
+### Option 1: Local vLLM Servers (Original Method)
+
 The script relies on Slurm, If you run it on non-slurm environments,
 
 Just use VLLM to create a openai compatible server, and insert to 'server.csv'
@@ -47,6 +49,39 @@ then, you can run the `run_with_earlystopping.py` for datasets.
 
 ```
 python run_with_earlystopping.py MODEL_NAME DATA_DIR_NAME
+```
+
+### Option 2: Groq API (New Method)
+
+You can now use Groq API instead of local vLLM servers for faster inference:
+
+1. Set environment variables:
+```bash
+export USE_GROQ=true
+export GROQ_API_KEY=your_groq_api_key_here
+```
+
+2. Run with Groq-supported models:
+```bash
+python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
+```
+
+**Supported Groq Models:**
+- `llama-3.1-8b-instant`
+- `llama-3.1-70b-versatile` 
+- `mixtral-8x7b-32768`
+- `gemma2-9b-it`
+- And other models available on Groq
+
+**Benefits of using Groq:**
+- Much faster inference (up to 10x faster than local deployment)
+- No need to manage local GPU servers
+- Easy to get started with just an API key
+- Automatic scaling and load balancing
+
+3. Example usage script:
+```bash
+python groq_example.py
 ```
 
 ### Support Datasets
