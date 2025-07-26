@@ -1,0 +1,17 @@
+{
+    "api": {
+        "use_groq": false,
+        "groq_api_key": "",
+        "groq_model": "llama-3.1-8b-instant"
+    },
+    "local_servers": {
+        "server_csv_path": "./server.csv",
+        "timeout": 15,
+        "temperature": 0.95
+    },
+    "datasets": {
+        "max_iter": 16,
+        "testtime_max_iter": 2,
+        "patient": 0
+    }
+}

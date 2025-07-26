@@ -48,10 +48,77 @@ MODEL_NAME = ''
 DATA_NAME = ''
 
 if MODEL_NAME == '':
+    if len(sys.argv) < 2:
+        print("Error: MODEL_NAME is required")
+        print("Usage: python run_with_earlystopping.py MODEL_NAME [DATA_NAME]")
+        print("Example: python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-test")
+        sys.exit(1)
     MODEL_NAME = sys.argv[1]
 
 if DATA_NAME == '':
-    DATA_NAME = sys.argv[2]
+    if len(sys.argv) >= 3:
+        DATA_NAME = sys.argv[2]
+    else:
+        # Provide default DATA_NAME based on model if not specified
+        DATA_NAME = f'default-{MODEL_NAME.split("/")[-1]}-test'
+        print(f"No DATA_NAME specified, using default: {DATA_NAME}")
+
+def load_config():
+    """Load configuration from config.json with fallback to environment variables"""
+    config = {
+        'use_groq': False,
+        'groq_api_key': None,
+        'groq_model': 'llama-3.1-8b-instant',
+        'server_csv_path': './server.csv',
+        'timeout': 15,
+        'temperature': 0.95,
+        'max_iter': 16,
+        'testtime_max_iter': 2,
+        'patient': 0
+    }
+    
+    # Try to load from config.json first
+    try:
+        with open('config.json', 'r') as f:
+            file_config = json.load(f)
+            
+        # Update config with values from file
+        if 'api' in file_config:
+            api_config = file_config['api']
+            config['use_groq'] = api_config.get('use_groq', config['use_groq'])
+            config['groq_api_key'] = api_config.get('groq_api_key', config['groq_api_key'])
+            config['groq_model'] = api_config.get('groq_model', config['groq_model'])
+            
+        if 'local_servers' in file_config:
+            server_config = file_config['local_servers']
+            config['server_csv_path'] = server_config.get('server_csv_path', config['server_csv_path'])
+            config['timeout'] = server_config.get('timeout', config['timeout'])
+            config['temperature'] = server_config.get('temperature', config['temperature'])
+            
+        if 'datasets' in file_config:
+            dataset_config = file_config['datasets']
+            config['max_iter'] = dataset_config.get('max_iter', config['max_iter'])
+            config['testtime_max_iter'] = dataset_config.get('testtime_max_iter', config['testtime_max_iter'])
+            config['patient'] = dataset_config.get('patient', config['patient'])
+            
+        print("Loaded configuration from config.json")
+    except FileNotFoundError:
+        print("config.json not found, using defaults and environment variables")
+    except json.JSONDecodeError as e:
+        print(f"Error parsing config.json: {e}, using defaults and environment variables")
+    
+    # Fallback to environment variables if not set in config file
+    if not config['use_groq']:
+        config['use_groq'] = os.getenv('USE_GROQ', 'false').lower() == 'true'
+    if not config['groq_api_key']:
+        config['groq_api_key'] = os.getenv('GROQ_API_KEY')
+        
+    return config
+
+# Load configuration
+CONFIG = load_config()
+USE_GROQ = CONFIG['use_groq']
+GROQ_API_KEY = CONFIG['groq_api_key']
 
 def last_boxed_only_string(string):
     idx = string.rfind('\\boxed')
@@ -99,7 +166,7 @@ def extract_boxed_answer(pred_str, strip_double_curly_brace=False):
     if answer is None:
         return None
     if strip_double_curly_brace:
-        match = re.match('^\{(.*)\}$', answer)  # noqa: W605
+        match = re.match(r'^\{(.*)\}$', answer)
         if match:
             answer = match.group(1)
     return answer
@@ -278,7 +345,7 @@ def strip_string(string):
 
     # remove percentage
     string = string.replace('\\%', '')
-    string = string.replace('\%', '')  # noqa: W605
+    string = string.replace(r'\%', '')
 
     string = string.replace(' .', ' 0.')
     string = string.replace('{.', '{0.')
@@ -306,7 +373,7 @@ def strip_string(string):
         string = '\\frac{1}{2}'
 
     string = fix_a_slash_b(string)
-    string = string.replace('x \\in', '').strip()  # noqa: W605
+    string = string.replace(r'x \in', '').strip()
 
     # a_b == a, a_{b} == a_b for bit conversion
     if string.find('_') >= 0:
@@ -447,19 +514,57 @@ def create_client(line):
             {"role": "user", "content": 'hi'}#+'\nBe concisely and clearly in no more than 50 words.'
         ],
         # max_tokens=min(len(prompt)+128,8000),
-        temperature=0.95,#0.5 if 'testtime' in DATA_NAME else random.uniform(0,1)
-        timeout=15
+        temperature=CONFIG['temperature'],#0.5 if 'testtime' in DATA_NAME else random.uniform(0,1)
+        timeout=CONFIG['timeout']
         )
         print(len(clients)+1)
         clients.append(client)
     except:
         pass
 
+def create_groq_client():
+    """Create a Groq API client"""
+    global clients
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY environment variable is required when USE_GROQ=true")
+    
+    client = OpenAI(
+        base_url="https://api.groq.com/openai/v1",
+        api_key=GROQ_API_KEY,
+    )
+    
+    try:
+        # Test the connection with a simple request
+        client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "user", "content": "Test"}
+            ],
+            max_tokens=10,
+            temperature=0.1,
+            timeout=CONFIG['timeout']
+        )
+        print("Groq client created successfully")
+        clients.append(client)
+    except Exception as e:
+        print(f"Failed to create Groq client: {e}")
+        raise
+
 def get_clients():
     global clients
-    lines = open('./server.csv','r').readlines()
-    with ThreadPoolExecutor() as executor:
-        executor.map(create_client, lines)
+    if USE_GROQ:
+        # Use Groq API
+        create_groq_client()
+        print(f"Using Groq API with model: {MODEL_NAME}")
+    else:
+        # Use local vLLM servers from server.csv
+        server_csv_path = CONFIG['server_csv_path']
+        if not os.path.exists(server_csv_path):
+            raise FileNotFoundError(f"{server_csv_path} not found. Either create it with local server info or set use_groq=true in config.json")
+        lines = open(server_csv_path,'r').readlines()
+        with ThreadPoolExecutor() as executor:
+            executor.map(create_client, lines)
+        print(f"Using {len(clients)} local vLLM servers")
 
 
 
@@ -496,7 +601,7 @@ def generate(prompt,history=[],timeout = 150,truncate=True):
         {"role": "user", "content": prompt}#
     ],
     # max_tokens=min(len(prompt)+128,8000),
-    temperature=0.95,#0.5 if 'testtime' in DATA_NAME else random.uniform(0,1),
+    temperature=CONFIG['temperature'],#0.5 if 'testtime' in DATA_NAME else random.uniform(0,1),
     timeout = timeout
     )
     print(f'response received! time taken: {time.time()-time0} seconds.')
@@ -750,7 +855,7 @@ def main_loop(query,ground_truth,max_iter=16,ans_format=''):
     if check(ground_truth,weak_answer) :#and 'testtime' in DATA_NAME
         # Early stopping if ground truth answer was reached
         return hints_list,answers_list,to_explore,to_explore_reward,hints_bank,history_bank,hints_reward_imp_bank,fathers,childs,ucb_bank
-    patient = 0 if 'testtime' not in DATA_NAME else 0
+    patient = CONFIG['patient'] if 'testtime' not in DATA_NAME else 0
     alpha = 0.45
     update_ucb(fathers=fathers,childs=childs,to_explore=to_explore,to_explore_reward=to_explore_reward,ucb_bank=ucb_bank)
     for i in range(max_iter):
@@ -846,11 +951,11 @@ def func(example):
         
     # new_len = len(ground_truth)
     hints_prompt = f'Question: {query}\nCould you provide me with the thought process to solve this problem, but please don’t give me the answer or calculation, just the thought process?'
-    max_iter = 16
+    max_iter = CONFIG['max_iter']
     if 'meta-math' in DATA_NAME:
         max_iter = 8
     if 'testtime' in DATA_NAME:
-        max_iter = 2
+        max_iter = CONFIG['testtime_max_iter']
     hints_list,answers_list,to_explore,to_explore_reward,hints_bank,history_bank,hints_reward_imp_bank,fathers,childs,ucb_bank = main_loop(query,ground_truth,max_iter=max_iter,ans_format=ans_format)
     if len(answers_list) <= 1 and 'rs' in DATA_NAME:
         return 
