@@ -54,7 +54,19 @@ except FileNotFoundError:
 
 # Import the main module
 import sys
-sys.argv = ['groq_example.py', 'llama-3.1-8b-instant', 'gsm8k-groq-test']
+# Use command line args if provided, otherwise use defaults
+if len(sys.argv) >= 2:
+    model_name = sys.argv[1]
+else:
+    model_name = 'llama-3.1-8b-instant'
+
+if len(sys.argv) >= 3:
+    data_name = sys.argv[2]
+else:
+    data_name = 'gsm8k-groq-test'
+
+sys.argv = ['groq_example.py', model_name, data_name]
+print(f"🚀 Running with model: {model_name}, dataset: {data_name}")
 
 # Now import and run the main script
 import run_with_earlystopping

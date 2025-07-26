@@ -79,7 +79,11 @@ You can now use Groq API instead of local vLLM servers for faster inference:
 
 2. Run with Groq:
 ```bash
+# With dataset name
 python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
+
+# Or just model name (dataset name will be auto-generated)
+python run_with_earlystopping.py llama-3.1-8b-instant
 ```
 
 #### Method 2: Environment Variables (Alternative)
@@ -87,7 +91,12 @@ python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
 ```bash
 export USE_GROQ=true
 export GROQ_API_KEY=your_groq_api_key_here
+
+# With dataset name
 python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
+
+# Or just model name
+python run_with_earlystopping.py llama-3.1-8b-instant
 ```
 
 **Configuration Options:**

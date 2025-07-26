@@ -48,10 +48,20 @@ MODEL_NAME = ''
 DATA_NAME = ''
 
 if MODEL_NAME == '':
+    if len(sys.argv) < 2:
+        print("Error: MODEL_NAME is required")
+        print("Usage: python run_with_earlystopping.py MODEL_NAME [DATA_NAME]")
+        print("Example: python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-test")
+        sys.exit(1)
     MODEL_NAME = sys.argv[1]
 
 if DATA_NAME == '':
-    DATA_NAME = sys.argv[2]
+    if len(sys.argv) >= 3:
+        DATA_NAME = sys.argv[2]
+    else:
+        # Provide default DATA_NAME based on model if not specified
+        DATA_NAME = f'default-{MODEL_NAME.split("/")[-1]}-test'
+        print(f"No DATA_NAME specified, using default: {DATA_NAME}")
 
 def load_config():
     """Load configuration from config.json with fallback to environment variables"""
@@ -156,7 +166,7 @@ def extract_boxed_answer(pred_str, strip_double_curly_brace=False):
     if answer is None:
         return None
     if strip_double_curly_brace:
-        match = re.match('^\{(.*)\}$', answer)  # noqa: W605
+        match = re.match(r'^\{(.*)\}$', answer)
         if match:
             answer = match.group(1)
     return answer
@@ -335,7 +345,7 @@ def strip_string(string):
 
     # remove percentage
     string = string.replace('\\%', '')
-    string = string.replace('\%', '')  # noqa: W605
+    string = string.replace(r'\%', '')
 
     string = string.replace(' .', ' 0.')
     string = string.replace('{.', '{0.')
@@ -363,7 +373,7 @@ def strip_string(string):
         string = '\\frac{1}{2}'
 
     string = fix_a_slash_b(string)
-    string = string.replace('x \\in', '').strip()  # noqa: W605
+    string = string.replace(r'x \in', '').strip()
 
     # a_b == a, a_{b} == a_b for bit conversion
     if string.find('_') >= 0:
