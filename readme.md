@@ -55,16 +55,49 @@ python run_with_earlystopping.py MODEL_NAME DATA_DIR_NAME
 
 You can now use Groq API instead of local vLLM servers for faster inference:
 
-1. Set environment variables:
-```bash
-export USE_GROQ=true
-export GROQ_API_KEY=your_groq_api_key_here
+#### Method 1: Configuration File (Recommended)
+
+1. Create or edit `config.json`:
+```json
+{
+    "api": {
+        "use_groq": true,
+        "groq_api_key": "your_groq_api_key_here",
+        "groq_model": "llama-3.1-8b-instant"
+    },
+    "datasets": {
+        "max_iter": 16,
+        "testtime_max_iter": 2,
+        "patient": 0
+    },
+    "local_servers": {
+        "timeout": 15,
+        "temperature": 0.95
+    }
+}
 ```
 
-2. Run with Groq-supported models:
+2. Run with Groq:
 ```bash
 python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
 ```
+
+#### Method 2: Environment Variables (Alternative)
+
+```bash
+export USE_GROQ=true
+export GROQ_API_KEY=your_groq_api_key_here
+python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
+```
+
+**Configuration Options:**
+- `use_groq`: Enable/disable Groq API usage
+- `groq_api_key`: Your Groq API key
+- `groq_model`: Default model to use with Groq
+- `max_iter`: Maximum MCTS iterations (default: 16)
+- `testtime_max_iter`: Max iterations for testtime datasets (default: 2)
+- `timeout`: API request timeout in seconds (default: 15)
+- `temperature`: Sampling temperature (default: 0.95)
 
 **Supported Groq Models:**
 - `llama-3.1-8b-instant`
@@ -79,10 +112,9 @@ python run_with_earlystopping.py llama-3.1-8b-instant gsm8k-groq-test
 - Easy to get started with just an API key
 - Automatic scaling and load balancing
 
-3. Example usage script:
-```bash
-python groq_example.py
-```
+**Example files:**
+- `config_groq_example.json` - Example configuration for Groq API
+- `groq_example.py` - Demonstration script
 
 ### Support Datasets
 
